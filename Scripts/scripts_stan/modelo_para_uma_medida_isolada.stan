@@ -40,7 +40,7 @@ parameters {
 }
 
 model {
-  
+  int count = 0;
   
   //prioris para discriminação
   //for(m in 1:M) {
@@ -107,8 +107,12 @@ model {
 
 
   //for(m in 1:M) {
-    for(i in 1:N) {
-      y[i] ~ bernoulli_logit(b_t*theta[i] + b_l*lambda[i] + z[i,]*bz + re[i]);
+  
+    for(l in 1:L){
+      for(k in 1:nk[l]){
+        count += 1;
+        y[count] ~ bernoulli_logit(b_t*theta[count] + b_l*lambda[count] + z[count,]*bz + re[count] + gamma[l]);
+      }
     }
   //}
   
@@ -123,22 +127,29 @@ generated quantities {
   real logy[N];
   
   //for(m in 1:M){
-    for(i in 1:N) {
-      for(je in 1:Je) {
+  //for(i in 1:N) {
+    int count = 0;
+    for(l in 1:L){
+      for(k in 1:nk[l]){
+        count += 1;
+        for(je in 1:Je) {
       
-        xpred[i,je] = bernoulli_rng(Phi(a_e[je]*(theta[i]-b_e[je])));
+          xpred[count,je] = bernoulli_rng(Phi(a_e[je]*(theta[count]-b_e[je])));
 
-      }
+        }
 
-      for(jc in 1:Jc) {
+        for(jc in 1:Jc) {
        
-        wpred[i,jc] = bernoulli_rng(Phi(a_c[jc]*(lambda[i]-b_c[jc])));
+          wpred[count,jc] = bernoulli_rng(Phi(a_c[jc]*(lambda[count]-b_c[jc])));
+        }
+      
+      
+        ypred[count] = bernoulli_logit_rng(b_t*theta[count] + b_l*lambda[count] + z[count,]*bz + re[count] + gamma[l]);
+        logy[count] = bernoulli_logit_lpmf(y[count] | b_t*theta[count] + b_l*lambda[count] + z[count,]*bz + re[count] + gamma[l]);
       }
-      
-      
-      ypred[i] = bernoulli_logit_rng(b_t*theta[i] + b_l*lambda[i] + re[i]);
-      logy[i] = bernoulli_logit_lpmf(y[i] | b_t*theta[i] + b_l*lambda[i] + z[i,]*bz + re[i]);
     }
+      
+  //}
   //}
 
 }

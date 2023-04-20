@@ -73,52 +73,58 @@ wbin = wbin[, , 6]
 datamodel_bin = list(
   K = 1,
   N = nrow(xbin),
-  M = 1,
+  M = 6,
   Jc = ncol(wbin),
   Je = ncol(xbin),
   w = wbin,
   x = xbin,
   L = dim(xik)[2],
-  I = 1,
-  Um0 = 0,
-  mu = 0,
+  I = diag(rep(1, 6)),
+  Um0 = matrix(1, 6, 6) - diag(rep(1, 6)),
+  mu = rep(0, 6),
   muviz = rep(0, 85),
   viz = diag(rowSums(mat)),
   vizmat = mat,
   nk = colSums(xik),
-  y = y[,6],
+  y = y,
   z = z,
   zl = ncol(z)
 )
 
 # Leitura do arquivo Stan contendo o modelo a ser utilizado
-model = stan_model(file = "scripts_stan/modelo_dicotomico_com_correlacao_para_uma_medida_isolada.stan",
+model = stan_model(file = "scripts_stan/modelo_para_uma_medida_isolada.stan",
                    model_name = "main_model", save_dso = T, auto_write = T)
 
+final_model = stan_model(file = "scripts_stan/modelo_final.stan",
+                   model_name = "main_final_model", save_dso = T, auto_write = T)
 
 # Valores iniciais de alguns parâmetros para duas cadeias distintas
 inits = list(
   list(
-    "a_c" = runif(5, 0.5, 1),
-    "theta" = rep(0.5, 1146),
-    "lambda" = rep(0.5, 1146),
-    "b_l" = 3,
-    "b_t" = 4
+    "a_c" = matrix(runif(6*5, 0.5, 1), 6, 5),
+    "theta" = matrix(0.5, 1146, 6),
+    "lambda" = matrix(0.5, 1146, 6),
+    "b_l" = rep(3,6),
+    "b_t" = rep(4,6)
   ),
   list(
-    "a_c" = runif(5, 0.5, 1),
-    "theta" = rep(-0.5, 1146),
-    "lambda" = rep(-0.5, 1146),
-    "b_l" = -2,
-    "b_t" = -4
+    "a_c" = matrix(runif(6*5, 0.5, 1), 6, 5),
+    "theta" = matrix(-0.5, 1146, 6),
+    "lambda" = matrix(-0.5, 1146, 6),
+    "b_l" = rep(-2,6),
+    "b_t" = rep(-4,6)
   )
 )
 
 # Execução do modelo
-amostra <- sampling(model, data = datamodel_bin, chains = 2, iter = 7000, init = inits, warmup = 4000)
+amostra <- sampling(model, data = datamodel_bin, chains = 2, iter = 200000, init = inits, warmup = 100000,
+                    pars = c("b_l", "b_t", "bz", "gamma", "ypred", "logy"))
+
+amostra <- sampling(final_model, data = datamodel_bin, chains = 1, iter = 10, init = inits, warmup = 5,
+                    pars = c("b_l", "b_t", "bz", "gamma", "ypred"))
   
 
-saveRDS(amostra, "amostra/amostra_seguros.RDS")
+saveRDS(amostra, "C:\\Users\\jeees\\Desktop\\Amostras Finais - Monografia\\amostra_seguros.RDS")
 
 
 rm(list = ls())

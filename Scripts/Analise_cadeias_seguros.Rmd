@@ -1,0 +1,81 @@
+---
+title: "Analise das Cadeias para Seguros"
+output: pdf_document
+date: "2023-04-05"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = F, error = F, message = F, comment = "")
+```
+
+```{r, include = FALSE}
+rm(list = ls())
+
+# Leitura de Pacotes e amostras das distribuições a posteriori ----
+library(tidyverse)
+library(rstan)
+library(coda)
+require(rgdal)
+library(stringi)
+library(sf)
+library(tigris)
+
+
+amostra <- readRDS("C:\\Users\\jeees\\Desktop\\Amostras Finais - Monografia\\amostra_seguros.RDS")
+
+# Preparação dos resultados ----
+
+posterior_summary <- summary(amostra, pars = "gamma", probs = c(0.025, 0.5, 0.975))
+
+source("dados/script_banco.R")
+posterior_summary <- data.frame(Bairro = toupper(unique(dado_select$q4)), 
+                                Media = posterior_summary$summary[, 1],
+                                LI = posterior_summary$summary[, 4],
+                                LS = posterior_summary$summary[, 6]) %>%
+  mutate(Significative_values = case_when(
+    LI > 0 | LS < 0 ~ Media,
+    TRUE ~ NA_real_))
+
+mapa <- st_read("dados\\Shapefile\\bairros.shp")
+
+mapa$BAIRROS <- stri_trans_general(str = mapa$BAIRROS, id = "Latin-ASCII")
+
+mapa <- mapa %>% 
+  group_by(BAIRROS) %>%
+  summarise(geometry = st_union(geometry))
+
+
+posterior_summary$Bairro <- stri_trans_general(str = posterior_summary$Bairro, id = "Latin-ASCII")
+
+posterior <- geo_join(mapa, posterior_summary, by_sp = "BAIRROS", by_df = "Bairro", how = "inner")
+
+Amostra <- As.mcmc.list(amostra, pars = c("b_l", "b_t", "bz", "gamma"), include = T)
+
+```
+
+
+![Traceplot para 15 mil iterações com burnin de 8 mil](Traceplot_seguros_15k.png)
+
+![Gráfico de Autocorrelação para 15 mil iterações com burnin de 8 mil](Autocor_plot_seguros_15k.png)
+
+```{r}
+
+rstan::traceplot(amostra, pars = c("b_l", "b_t"), inc_warmup = T)
+
+rstan::traceplot(amostra, pars = c("bz[1]", "bz[2]"), inc_warmup = T)
+
+rstan::traceplot(amostra, pars = c("bz[3]", "bz[4]"), inc_warmup = T)
+
+ggplot(posterior) +
+  geom_sf(aes(fill = Significative_values)) +
+  theme_classic() + 
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", 
+                       midpoint = 0, name = "Efeitos Significativos") + 
+  theme(legend.position = "bottom")
+
+autocorr.plot(amostra)
+
+
+
+```
+
